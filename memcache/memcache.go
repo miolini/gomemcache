@@ -67,9 +67,12 @@ var (
 // DefaultTimeout is the default socket read/write timeout.
 const DefaultTimeout = 100 * time.Millisecond
 
+// DefaultMaxIdleConnsPerAddr is the default max limit idle
+// connections per addr.
+const DefaultMaxIdleConnsPerAddr = 30
+
 const (
 	buffered            = 8 // arbitrary buffered channel size, for readability
-	maxIdleConnsPerAddr = 2 // TODO(bradfitz): make this configurable?
 )
 
 // resumableError returns true if err is only a protocol-level cache error.
@@ -132,6 +135,10 @@ type Client struct {
 	// Timeout specifies the socket read/write timeout.
 	// If zero, DefaultTimeout is used.
 	Timeout time.Duration
+	
+	// Limit idle connections per addr.
+	// If zero, DefaultMaxIdleConnsPerAddr is used.
+	MaxIdleConnsPerAddr int 
 
 	selector ServerSelector
 
@@ -196,7 +203,7 @@ func (c *Client) putFreeConn(addr net.Addr, cn *conn) {
 		c.freeconn = make(map[string][]*conn)
 	}
 	freelist := c.freeconn[addr.String()]
-	if len(freelist) >= maxIdleConnsPerAddr {
+	if (c.MaxIdleConnsPerAddr > 0 && len(freelist) >= c.MaxIdleConnsPerAddr) || DefaultMaxIdleConnsPerAddr >= len(freelist) {
 		cn.nc.Close()
 		return
 	}
